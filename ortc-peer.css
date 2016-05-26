@@ -1,0 +1,54 @@
+.block-note--error p {
+	max-width: none;
+}
+
+.strong {
+	font-weight: 600;
+}
+
+#previewVideo,
+#videoholder {
+    background-color: #000;
+}
+
+.connect-form,
+.ortc-status {
+	margin-top: 3.2rem;
+	padding-top: 3.2rem;
+	border-top: 1px solid #d2d2d2;
+}
+
+.modal {
+    background-color: rgba(0,0,0,.5);
+}
+
+.modal__footer button:only-child {
+	float: none;
+}
+
+.ortc-status__title,
+.ortc-status__description {
+	display: inline;
+}
+
+/* Styles for when layout is not stacked */
+@media (min-width: 48em) {
+	
+	#connect_btn {
+		width: 100%;
+	}
+
+}
+
+@media (min-width: 48em) and (max-width: 64em) {
+
+	.layout--sidebar > .module--secondary {
+		width: 28rem;
+	}
+
+	.layout--sidebar > .module--primary {
+		float: right;
+		width: calc(100% - 34rem);
+	}
+
+}
