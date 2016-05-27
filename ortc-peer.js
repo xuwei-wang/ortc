@@ -56,6 +56,7 @@
     var remoteDtlsParams_2 = null;
 
     var allowPreview = true;
+    var localStream = null;
 
     var util = {};
     window.onload = function () {
@@ -74,20 +75,39 @@
 
     function initialize() {
         try {
-            document.getElementById("connect_btn").addEventListener("click", validatePeer);
+            document.getElementById("connect_btn").addEventListener("click", initiateConnection);
             document.getElementById("alert-ok-btn").addEventListener("click", closeAlert);
             document.getElementById("alert-box").addEventListener("keypressed", closeAlert);
 
             global.fName = window.location.pathname.substring(window.location.pathname.indexOf("/", 0) + 1);
-
-            sigCh = new global.SignallingChannel();
-            sigCh.onmessage = handleMessages;
-        }
-        catch (e) {
+            
+            //signal channel
+            sigCh = new signalChannel({
+                handleWebrtcMsg:handleMessages,
+                handleConnectMsg:handleConnectMsg
+            });
+            sigCh.handleMsg = handleMessages;
+            sigCh.connectToServer('192.168.12.136','12345');
+            
+            //prepare media
+            prepareLocalMedia();
+            
+        } catch (e) {
             showMessage(e.message || e, true);
         }
     }
-
+    
+    function handleConnectMsg(msg){
+        showMessage(msg);       
+        /*if (message.disconnect && isBusy) {
+            showMessage("Peer terminated connection. Please disconnect and try again.");
+            closeConnection();
+        }
+        if (message.error) {
+            showMessage("Remote error: " + message.error, true);
+        }*/
+    }
+    
     function updateCallStatus(on) {
         if (on) {
             document.getElementById("connect_btn").value = "Connect";
@@ -132,64 +152,13 @@
         if(isBusy)closeConnection();
     }
 
-    function clearPeerDetails() {
-        var elPeerId = document.getElementById("peer-id");
 
-        if (elPeerId) {
-            elPeerId.value = "";
-            elPeerId.title = "";
-        }
-
-        peerInfo = {};
-    }
-
-    function handleMessages(evt) {
-
-        var message = JSON.parse(evt.data);
-
-        addToLog(JSON.stringify(message)); 
-
-        if (message.registerdone) {
-            addToLog(JSON.stringify(message.registerdone));
-            updateSelfInformation(message.registerdone);
-        }
-
-        if (message.peervalidateresponse) {
-            if (message.peervalidateresponse === "valid") {
-                requestConnection();
-            }
-            else {
-                clearPeerDetails();
-                showMessage("Invalid peer details.", true);
-            }
-        }
-
-        if (message.connectrequest) {
-            handleCallRequest(message);
-        }
-
-        if (message.connectresponse) {
-            if (message.connectresponse === "reject") {
-
-                showMessage("Peer rejected offer.", true);
-                clearPeerDetails();
-            }
-        }
-
-        if (message.start) {
-            selfInfo.dtlsRole = message.dtlsrole;
-            initiateConnection();  
-        }
-
-        if (message.disconnect && isBusy) {
-            showMessage("Peer terminated connection. Please disconnect and try again.");
-            closeConnection();
-        }
-
-        if (message.error) {
-            showMessage("Remote error: " + message.error, true);
-        }
-
+    function handleMessages(evt) {     
+        var message = evt;
+        
+        console.log("recieve message:"+JSON.stringify(message));
+        //addToLog(JSON.stringify(message)); 
+        answerConnection();
         if (iceTr && dtlsTr) {
             if (message.candidate) {
 
@@ -199,12 +168,9 @@
                     remoteCandidates.push(message.candidate);
                 }
                 else {
+                    addToLog("set remote Ice candidates");
                     iceTr.setRemoteCandidates(remoteCandidates); 
                 }
-
-                // the alternative option is to call addRemoteCandidate including the empty candidate
-                //iceTr.addRemoteCandidate(message.candidate);
-
             }
 
             if (message.params) {
@@ -229,7 +195,7 @@
 
                         trackCount++;
                         if ( trackCount == 2) {
-                            videoRenderer.srcObject = renderStream;
+                            //videoRenderer.srcObject = renderStream;
                         }
                     }
                     else {
@@ -246,7 +212,7 @@
 
                         trackCount++;
                         if ( trackCount == 2) {
-                            videoRenderer.srcObject = renderStream;
+                            //videoRenderer.srcObject = renderStream;
                         }
                     }
                     else {
@@ -276,6 +242,8 @@
                     }
                 }
             }
+        } else{
+            addToLog("NULL iceTr and iceGathr");
         }
 
         if (iceTr_2 && dtlsTr_2) {
@@ -306,32 +274,6 @@
                 }
 
             }
-        }
-    }
-
-    function handleCallRequest(message) {
-        showMessage("Peer: " + message.connectrequest.peerInfo.id + " requested to connect.");
-
-        if (isBusy) {
-            peerInfo = message.connectrequest.peerInfo;
-
-            // reject
-            signalMessage(JSON.stringify({
-                "connectresponse": "reject"
-            }));
-
-            peerInfo = {};
-            showMessage("Rejected Peer: " + message.connectrequest.peerInfo.id + " connection request.");
-        }
-        else {
-            // accept
-            peerInfo = message.connectrequest.peerInfo;
-
-            signalMessage(JSON.stringify({
-                "connectresponse": "accept"
-            }));
-
-            showMessage("Accepted Peer: " + message.connectrequest.peerInfo.id + " connection request.");
         }
     }
 
@@ -430,30 +372,33 @@
             updateCallStatus(true);
         }
     }
-
-    function requestConnection() {
-        signalMessage(JSON.stringify({
-            connectrequest: "connectrequest"
-        }));
-    }
-
-    function initiateConnection() {
-
-        updateCallStatus();
-
-        var iceOptions = { "gatherPolicy": "all", "iceServers": [{ "urls": "turn:turn-testdrive.cloudapp.net:3478?transport=udp", "username": "redmond", "credential": "redmond123" }] };
-
+    
+    function prepareIce(){ 
+        addToLog("prepareIce");     
+        /*var iceOptions = { 
+                "gatherPolicy": "all", 
+                "iceServers": [{ "urls": "turn:turn-testdrive.cloudapp.net:3478?transport=udp", 
+                                 "username": "redmond", 
+                                 "credential": "redmond123" }] 
+            };
+         */
         // the following will work for testing within the same network (i.e. no relay)
-        //var iceOptions = { "gatherPolicy": "all", "iceServers": [] };
-
-        iceGathr = new RTCIceGatherer(iceOptions);
-        iceTr = new RTCIceTransport(); 
-        dtlsTr = new RTCDtlsTransport(iceTr); 
+        var iceOptions = { "gatherPolicy": "all", "iceServers": [] };
+            
+        if(!iceGathr)
+            iceGathr = new RTCIceGatherer(iceOptions);
+        if(!iceTr)
+            iceTr = new RTCIceTransport(); 
+        if(!dtlsTr)
+            dtlsTr = new RTCDtlsTransport(iceTr); 
 
         if(!allowBundle){
-            iceGathr_2 = new RTCIceGatherer(iceOptions);
-            iceTr_2 = new RTCIceTransport(); 
-            dtlsTr_2 = new RTCDtlsTransport(iceTr_2); 
+            if(!iceGathr_2)
+                iceGathr_2 = new RTCIceGatherer(iceOptions);
+            if(!iceTr_2)
+                iceTr_2 = new RTCIceTransport(); 
+            if(!dtlsTr_2)
+                dtlsTr_2 = new RTCDtlsTransport(iceTr_2); 
         }
 
         // Apply any local ICE candidate and send it to the remote
@@ -485,50 +430,36 @@
             }
         };
 
-        if(!allowBundle) iceGathr_2.onlocalcandidate = function (evt) {
-            signalMessage(JSON.stringify({ "candidate_2": evt.candidate }));
+        if(!allowBundle) {
+            iceGathr_2.onlocalcandidate = function (evt) {
+                signalMessage(JSON.stringify({ "candidate_2": evt.candidate }));
 
-            localCandidatesCreated_2 = false;
+                localCandidatesCreated_2 = false;
 
-            if(Object.keys(evt.candidate).length == 0){
-                localCandidatesCreated_2 = true;
+                if(Object.keys(evt.candidate).length == 0){
+                    localCandidatesCreated_2 = true;
 
-                addToLog("End of local ICE candidates_2");
+                    addToLog("End of local ICE candidates_2");
 
-                signalMessage(JSON.stringify({
-                    params: {
-                        "ice_2": iceGathr_2.getLocalParameters(),
-                        "dtls_2": dtlsTr_2.getLocalParameters()
+                    signalMessage(JSON.stringify({
+                        params: {
+                            "ice_2": iceGathr_2.getLocalParameters(),
+                            "dtls_2": dtlsTr_2.getLocalParameters()
+                        }
+                    }));
+
+                    if(remoteIceParams_2){
+                        iceTr_2.start(iceGathr_2, remoteIceParams_2, (selfInfo.dtlsRole && selfInfo.dtlsRole === "client" ? "controlled" : "controlling" ));
+
+                        dtlsTr_2.start(remoteDtlsParams_2);
                     }
-                }));
-
-                if(remoteIceParams_2){
-                    iceTr_2.start(iceGathr_2, remoteIceParams_2, (selfInfo.dtlsRole && selfInfo.dtlsRole === "client" ? "controlled" : "controlling" ));
-
-                    dtlsTr_2.start(remoteDtlsParams_2);
                 }
-            }
-            else {
-                addToLog("Local ICE candidate_2: " + evt.candidate.ip + ":" + evt.candidate.port);
-            }
-        };
-
-        // Get a local stream
-        renderStream = new MediaStream();
-        navigator.mediaDevices.getUserMedia({ 
-            "audio": true, 
-            "video": {
-                width: 640,
-                height: 480,
-                facingMode: "user" 
-            }
-        }).then( 
-            gotMedia
-        ).catch( 
-            gotMediaError
-        );
-        videoRenderer = document.getElementById("rtcRenderer");
-
+                else {
+                    addToLog("Local ICE candidate_2: " + evt.candidate.ip + ":" + evt.candidate.port);
+                }
+            };
+        }
+        
         // ice state has changed
         iceTr.onicestatechange = function (evt) {
             addToLog("ICE state changed to |" + iceTr.state + "|");
@@ -627,9 +558,67 @@
         if(!allowBundle) dtlsTr_2.onerror = function (evt) {
             showMessage("DTLS_2 transport failed. Please disconnect and try again.", true);
         };
+        
     }
+    
+    function prepareLocalMedia(){
+        addToLog("prepareLocalMedia");
+        if( !renderStream ) {
+            
+            renderStream = new MediaStream();
+            navigator.mediaDevices.getUserMedia({ 
+                "audio": true, 
+                "video": {
+                    width: 640,
+                    height: 480,
+                    facingMode: "user" 
+                }
+            }).then( 
+                gotLocalMedia
+            ).catch( 
+                gotMediaError
+            );
+        }
+        if( !videoRenderer ) {
+            videoRenderer = document.getElementById("rtcRenderer");
+        }
+    }
+    
+    function initiateConnection() {
 
-    function gotMedia(stream) {
+        //dtls role, the peer initialized the call controls  
+        selfInfo.dtlsRole = 'server';  
+        updateCallStatus();
+        prepareIce();
+        // Get a local stream
+        sendMedia(localStream);
+        
+    }
+    
+    function answerConnection() {   
+        if(!iceGathr && !iceTr && !dtlsTr){  
+            addToLog("anwserConnection: ");         
+            //dtls role, the peer initialized the call controls
+            selfInfo.dtlsRole = 'client';
+            updateCallStatus();
+            prepareIce();
+            // Get a local stream
+            sendMedia(localStream);
+        }
+    }
+    
+    function gotLocalMedia( stream ){
+        localStream = stream;
+        if(allowPreview) {
+            var videoTracks = stream.getVideoTracks();
+            previewStream = new MediaStream();
+            previewStream.addTrack(videoTracks[0]); 
+            videoPreview = document.getElementById("previewVideo");
+            videoPreview.srcObject = previewStream;
+        }
+    }
+    
+    function sendMedia(stream) {
         var audioTracks = stream.getAudioTracks(); 
 
         if (audioTracks.length > 0) {
@@ -653,12 +642,12 @@
             var videoTrack = videoTracks[0];
             local_video_MST = videoTrack;
 
-            if(allowPreview) {
+            /*if(allowPreview) {
                 previewStream = new MediaStream();
                 previewStream.addTrack(local_video_MST); 
                 videoPreview = document.getElementById("previewVideo");
                 videoPreview.srcObject = previewStream;
-            }
+            }*/
 
             if(allowBundle)
                 videoSender = new RTCRtpSender(videoTrack, dtlsTr);
@@ -710,7 +699,7 @@
                 audioReceiver.receive(audioRecvParams);
                 trackCount++;
                 if ( trackCount == 2) {
-                    videoRenderer.srcObject = renderStream;
+                    //videoRenderer.srcObject = renderStream;
                 }
             }
 
@@ -723,7 +712,7 @@
                 videoReceiver.receive(videoRecvParams);
                 trackCount++;
                 if ( trackCount == 2) {
-                    videoRenderer.srcObject = renderStream;
+                    //videoRenderer.srcObject = renderStream;
                 }
             }
 
@@ -751,85 +740,12 @@
         signalMessage(JSON.stringify({ "error": "Media error: " + e + "\n Please hang up and retry." }));
     }
 
-    function updateSelfInformation(details) {
-        var elSelfId = document.getElementById("user-id");
-        var elSelfKey = document.getElementById("user-key");
-
-        if (elSelfId && details.id) {
-            selfInfo.id = details.id;
-            selfInfo.friendlyName = details.friendlyName;
-            elSelfId.value = details.friendlyName;
-            document.title = "ORTC " + details.friendlyName;
-        }
-
-        if (elSelfKey && details.key) {
-            selfInfo.key = elSelfKey.value = details.key;
-        }
-    }
-
-    function getPeerIdFromFname(fName) {
-        var id = null;
-        var elList = document.getElementsByTagName("span");
-
-        for (var i = 0; i < elList.length; i++) {
-
-            if (elList[i].innerText === fName || elList[i].innerHTML === fName) {
-                id = elList[i].title;
-                break;
-            }
-        }
-
-        return id;
-    }
-
-    function validatePeer() {
-        if (document.getElementById("connect_btn").value === "Connect") {
-            var elId = document.getElementById("peer-id");
-            var peerId = elId.title;
-            var peerFname = elId.value;
-            var peerKey = document.getElementById("peer-key").value;
-
-            if (peerFname === "" || peerKey === "") {
-                showMessage("Please provide peer details.", true);
-            }
-            else {
-                if (!peerId) {
-                    peerId = getPeerIdFromFname(peerFname);
-                    elId.title = peerId;
-                }
-
-                peerInfo.id = peerId;
-                peerInfo.friendlyName = peerFname;
-                peerInfo.key = peerKey;
-
-                signalMessage(JSON.stringify({
-                    "peervalidaterequest": {
-                        id: peerInfo.id,
-                        friendlyName: peerInfo.friendlyName,
-                        key: peerInfo.key
-                    }
-                }));
-            }
-        }
-        else {
-            signalMessage(JSON.stringify({
-                "disconnect": {
-                    id: peerInfo.id,
-                    friendlyName: peerInfo.friendlyName,
-                    key: peerInfo.key
-                }
-            }));
-
-            closeConnection();
-        }
-    }
-
     function signalMessage(msg) {
         if (sigCh) {
             msg = JSON.parse(msg);
             msg.selfInfo = selfInfo;
             msg.peerInfo = peerInfo;
-            sigCh.send(JSON.stringify(msg));
+            sigCh.sendMsg(JSON.stringify(msg));
         }
     }
 

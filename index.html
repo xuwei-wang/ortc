@@ -6,49 +6,14 @@
     <link rel="stylesheet" href="https://edgeportal.blob.core.windows.net/media/demotemplate.css" type="text/css" />
     <link rel="stylesheet" href="ortc-peer.css" type="text/css" />
     <title>ORTC Peer</title>
-    <script src="socket.io.js"></script>
     <script src="objext.js"></script>
     <script src="event.js"></script>
     <script src="eventTarget.js"></script>
     <script src="defineEventProperty.js"></script>
     <script src="ortc-peer.js"></script>
-    <script src="signallingchannel.js"></script>
+    <script src="signalChannel.js"></script>
 </head>
 <body>
-
-	<!-- HEADER -->
-	<!--section class="section section--page-intro demo__header">
-		<div class="container">
-			<div class="section__header">
-				<h2>ORTC Demo</h2>
-			</div>
-			<div class="section__body">
-				<div id="warning" class="block-note--error" style="display: none;">
-					<p>Warning - Your browser does not support the ORTC API.  Please switch to a PC with a recent version of Windows 10 and try again.</p>
-				</div>
-				<div class="layout layout--equal">
-					<div class="module">
-						<p>
-							This demo allows you to create 1:1 audio/video call via the
-							<a target="_blank" href="http://ortc.org">ORTC
-								API</a> between Microsoft Edge browsers.
-						</p>
-						<ul>
-							<li>You should use a recent Edge browser version that supports the ORTC API. We recommend the most recent update in the Windows Insider Program.</li>
-							<li>You should have both a webcam and a microphone on your Windows 10 PC.</li>
-						</ul>
-					</div>
-					<div class="module">
-						<h4>To set up the 1:1 call:</h4>
-						<ul>
-							<li>Please share your user ID and key displayed below with a remote user so the remote user can connect with you.</li>
-							<li>Alternatively, you may get remote user ID and key so you can click the "Connect" button to establish the call with the remote user.</li>
-						</ul>
-					</div>
-				</div>
-			</div>
-		</div>
-	</section-->
 
     <!-- DEMO -->
 	<section id="demo" class="section">
@@ -63,27 +28,7 @@
 						</div>
 					</section>
 					<section class="connect-form">
-						<div class="layout layout--halves">
-							<div class="module">
-								<label>Your ID</label>
-								<input id="user-id" type="text" readonly="readonly" onclick="this.select();" value="000">
-							</div>
-							<div class="module">
-								<label>Your Key</label>
-								<input id="user-key" type="text" readonly="readonly" onclick="this.select();" value="000">
-							</div>
-						</div>
-						<div class="layout layout--halves">
-							<div class="module">
-								<label>Peer ID</label>
-								<input id="peer-id" type="text" onclick="this.select();">
-							</div>
-							<div class="module">
-								<label>Peer Key</label>
-								<input id="peer-key" type="text" onclick="this.select();">
-							</div>
-						</div>
-						<input id="connect_btn" class="button button--primary button--page-primary" type="button" value="Connect">
+						<input id="connect_btn" class="button button--primary button--page-primary" type="button" value="Call Peer">
 					</section>
 
 					<!-- STATUS FOOTER -->
